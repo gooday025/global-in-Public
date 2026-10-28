@@ -396,3 +396,12 @@ table.data td.why { min-width: 220px; }
 .reasons li.low::before { background: var(--line-2); }
 .reasons.good li::before { background: var(--go); }
 .reasons q { color: var(--ink-2); font-size: 13.5px; quotes: "“" "”"; }
+
+/* 정확도 표: 숫자는 줄바꿈하지 않고, 좁은 화면에서는 여백을 줄인다 */
+table.data td.num, table.data th.num { white-space: nowrap; }
+@media (max-width: 720px) {
+  table.data.compact { font-size: 13px; }
+  table.data.compact th, table.data.compact td { padding: 9px 7px; }
+  table.data.compact th:nth-child(1), table.data.compact td:nth-child(1) { min-width: 96px; }
+  table.data.compact th:nth-child(2), table.data.compact td:nth-child(2) { min-width: 72px; }
+}
