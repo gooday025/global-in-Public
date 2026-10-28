@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { analyzeWithLlm } from "@/lib/llm";
-import { modelName, usedModel } from "@/lib/provider";
+import { modelName, usedModel, setForcedModel } from "@/lib/provider";
 import { runRules } from "@/lib/rules";
 import { combine, locate } from "@/lib/analyze";
 import { SIGNALS } from "@/lib/signals";
@@ -17,8 +17,10 @@ export async function GET(req: Request) {
   const rows = (u.searchParams.get("set") === "B" ? setB : setA) as { id: string; text: string }[];
   const offset = Number(u.searchParams.get("offset") ?? 0);
   const limit = Math.min(25, Number(u.searchParams.get("limit") ?? 10));
-  const slice = rows.slice(offset, offset + limit);
+  const only = u.searchParams.get("ids")?.split(",");
+  const slice = only ? rows.filter((r) => only.includes(r.id)) : rows.slice(offset, offset + limit);
   const model = await modelName();
+  setForcedModel(u.searchParams.get("model") ?? undefined);
   const compact = u.searchParams.get("compact") === "1";
   const CRIT = new Set(SIGNALS.filter((x) => x.severity === "critical").map((x) => x.id));
   const results: unknown[] = [];
@@ -40,5 +42,6 @@ export async function GET(req: Request) {
       results.push({ id: r.id, error: (e as Error).message, ms: Date.now() - t, model });
     }
   }
+  setForcedModel(undefined);
   return NextResponse.json({ total: rows.length, offset, results }, { headers: { "Cache-Control": "no-store" } });
 }

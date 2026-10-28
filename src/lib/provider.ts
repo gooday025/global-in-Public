@@ -25,6 +25,8 @@ let geminiList: string[] | null = process.env.GEMINI_MODEL ? [process.env.GEMINI
 export let usedModel: string | null = null;
 export let lastListError: string | null = null;
 export let lastCallError: string | null = null;
+let forcedModel: string | undefined;
+export const setForcedModel = (m?: string) => { forcedModel = m || undefined; };
 export const attemptLog: string[] = [];
 
 // 키로 쓸 수 있는 모델 중 텍스트·이미지 입력이 되는 최신 flash 계열을 고른다.
@@ -101,7 +103,8 @@ export async function jsonCall<T>(opts: {
   const p = provider();
   if (!p) throw new Error("LLM_UNAVAILABLE");
   if (p === "gemini") {
-    const models = opts.model ? [opts.model] : await candidates();
+    const pin = opts.model ?? forcedModel;
+    const models = pin ? [pin] : await candidates();
     let mi = 0;
     const parts: Record<string, unknown>[] = [];
     if (opts.image) parts.push({ inline_data: { mime_type: opts.image.mediaType, data: opts.image.data } });
