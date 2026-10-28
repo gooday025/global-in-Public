@@ -57,7 +57,10 @@ export async function candidates(): Promise<string[]> {
   names.sort((a, b) => score(b) - score(a));
   if (!names.length) throw new Error("GEMINI_NO_MODEL");
   geminiModel = names[0];
-  geminiList = [...names.slice(0, 5), "gemini-flash-latest"].filter((n, i, a) => a.indexOf(n) === i);
+  // 최신 모델은 출시 직후 과부하로 응답이 느려, 시험에서 안정적이던 3.5 flash를 먼저 쓰고 나머지는 대체용으로 둔다.
+  const first = names.filter((n) => /^gemini-3\.5-flash$/.test(n));
+  geminiList = [...first, ...names.slice(0, 5), "gemini-flash-latest"].filter((n, i, a) => a.indexOf(n) === i);
+  geminiModel = geminiList[0];
   return geminiList;
 }
 
