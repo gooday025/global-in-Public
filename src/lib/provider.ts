@@ -21,18 +21,28 @@ export function provider(): "gemini" | "anthropic" | null {
 
 const GEMINI = "https://generativelanguage.googleapis.com/v1beta";
 let geminiModel: string | null = process.env.GEMINI_MODEL || null;
+let geminiList: string[] | null = process.env.GEMINI_MODEL ? [process.env.GEMINI_MODEL] : null;
+export let usedModel: string | null = null;
 export let lastListError: string | null = null;
 export let lastCallError: string | null = null;
 
 // 키로 쓸 수 있는 모델 중 텍스트·이미지 입력이 되는 최신 flash 계열을 고른다.
 export async function pickGeminiModel(): Promise<string> {
   if (geminiModel) return geminiModel;
+  await candidates();
+  return geminiModel!;
+}
+
+// 사용 가능한 flash 모델을 최신순으로 정렬해 둔다. 최신 모델이 과부하(503)면 다음 모델로 넘어간다.
+async function candidates(): Promise<string[]> {
+  if (geminiList) return geminiList;
   const r = await fetch(`${GEMINI}/models?pageSize=200`, { headers: { "x-goog-api-key": gkey() }, signal: AbortSignal.timeout(8000) });
   if (!r.ok) {
     // 목록 조회가 막혀도 키가 유효하면 별칭 모델로 동작한다. 상세 사유는 /api/health에 남긴다.
     lastListError = `GEMINI_LIST_${r.status}: ${(await r.text()).slice(0, 160)}`;
     geminiModel = "gemini-flash-latest";
-    return geminiModel;
+    geminiList = [geminiModel, "gemini-2.5-flash"];
+    return geminiList;
   }
   const j = (await r.json()) as { models?: { name: string; supportedGenerationMethods?: string[] }[] };
   const names = (j.models ?? [])
@@ -46,7 +56,8 @@ export async function pickGeminiModel(): Promise<string> {
   names.sort((a, b) => score(b) - score(a));
   if (!names.length) throw new Error("GEMINI_NO_MODEL");
   geminiModel = names[0];
-  return geminiModel;
+  geminiList = [...names.slice(0, 4), "gemini-flash-latest"].filter((n, i, a) => a.indexOf(n) === i);
+  return geminiList;
 }
 
 export async function modelName(): Promise<string> {
@@ -85,37 +96,41 @@ export async function jsonCall<T>(opts: {
   const p = provider();
   if (!p) throw new Error("LLM_UNAVAILABLE");
   if (p === "gemini") {
-    const model = await pickGeminiModel();
+    const models = await candidates();
+    let mi = 0;
     const parts: Record<string, unknown>[] = [];
     if (opts.image) parts.push({ inline_data: { mime_type: opts.image.mediaType, data: opts.image.data } });
     parts.push({ text: opts.text });
-    const body = {
+    const bodyFor = (model: string) => ({
       systemInstruction: { parts: [{ text: opts.system }] },
       contents: [{ role: "user", parts }],
       generationConfig: { responseMimeType: "application/json", responseSchema: toGeminiSchema(opts.schema), temperature: 0, maxOutputTokens: opts.maxTokens ?? 4096, thinkingConfig: thinkingFor(model) },
-    };
+    });
     const t0 = Date.now();
     const budget = opts.timeoutMs ?? 28_000;
-    for (let attempt = 0; attempt < 3; attempt++) {
+    for (let attempt = 0; attempt < 6; attempt++) {
+      const model = models[Math.min(mi, models.length - 1)];
       const left = budget - (Date.now() - t0);
       if (left < 3000) break;
       const r = await fetch(`${GEMINI}/models/${model}:generateContent`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-goog-api-key": gkey() },
-        body: JSON.stringify(body),
+        body: JSON.stringify(bodyFor(model)),
         signal: AbortSignal.timeout(left),
       });
       if (r.status === 429 || r.status >= 500) {
         const t = await r.text();
         const m = t.match(/"retryDelay":\s*"(\d+)s"/);
         lastCallError = `GEMINI_${r.status}: ${t.slice(0, 300)}`;
-        await sleep(Math.min(5, m ? Number(m[1]) + 1 : 2 * (attempt + 1)) * 1000);
+        if (mi < models.length - 1) mi++;
+        else await sleep(Math.min(3, m ? Number(m[1]) + 1 : 1) * 1000);
         continue;
       }
       if (!r.ok) throw new Error(`GEMINI_${r.status}: ${(await r.text()).slice(0, 200)}`);
       const j = await r.json();
       const txt: string = (j.candidates?.[0]?.content?.parts ?? []).map((x: { text?: string }) => x.text ?? "").join("");
       if (!txt) throw new Error("GEMINI_EMPTY");
+      usedModel = model;
       return JSON.parse(txt) as T;
     }
     throw new Error("GEMINI_RATE_LIMIT");

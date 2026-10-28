@@ -17,7 +17,7 @@ export async function GET(req: Request) {
     const t = Date.now();
     try {
       const out = await P.jsonCall<{ ok: boolean }>({ system: "JSON만 답하세요.", text: "ok를 true로", name: "p", maxTokens: 64, timeoutMs: 20_000, schema: { type: "object", properties: { ok: { type: "boolean" } }, required: ["ok"] } });
-      probe = { ok: true, ms: Date.now() - t, out };
+      probe = { ok: true, used: P.usedModel, ms: Date.now() - t, out };
     } catch (e) {
       probe = { ok: false, ms: Date.now() - t, error: (e as Error).message, callError: P.lastCallError };
     }
