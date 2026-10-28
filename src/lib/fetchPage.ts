@@ -33,17 +33,32 @@ export function htmlToText(html: string): { title: string; text: string } {
   // 본문 후보: <article>, <main>, 본문을 뜻하는 id/class 블록 중 글이 가장 긴 것
   const cands: string[] = [];
   for (const m of html.matchAll(/<(article|main)\b[\s\S]*?<\/\1>/gi)) cands.push(m[0]);
-  for (const m of html.matchAll(/<div[^>]+(?:id|class)=["'][^"']*(?:article|content|post|view|detail|body|recruit|job)[^"']*["'][^>]*>/gi)) {
+  for (const m of html.matchAll(/<(?:div|section)[^>]+(?:id|class|itemprop)=["'][^"']*(?:article|content|post|view|detail|body|recruit|job|text)[^"']*["'][^>]*>/gi)) {
     const start = m.index ?? 0;
-    cands.push(html.slice(start, start + 60000));
+    const tag = /^<section/i.test(m[0]) ? "section" : "div";
+    const re = new RegExp(`<\\/?${tag}\\b`, "gi");
+    re.lastIndex = start;
+    let depth = 0;
+    let end = Math.min(html.length, start + 200000);
+    for (let t = re.exec(html); t; t = re.exec(html)) {
+      depth += t[0][1] === "/" ? -1 : 1;
+      if (depth === 0) {
+        end = t.index;
+        break;
+      }
+      if (t.index - start > 200000) break;
+    }
+    cands.push(html.slice(start, end));
   }
+  // 문단(40자 이상 줄)의 총길이로 점수를 매긴다. 기사 목록·메뉴는 짧은 줄이 많아 점수가 낮다.
+  const scoreOf = (ls: string[]) => ls.filter((l) => l.length >= 40).reduce((a, l) => a + l.length, 0);
   let best = toLines(html);
-  let bestLen = 0;
+  let bestScore = scoreOf(best) * 0.5; // 페이지 전체는 불리하게
   for (const c of cands) {
-    const ls = toLines(c).filter((l) => l.length >= 12);
-    const len = ls.join("").length;
-    if (len > bestLen) {
-      bestLen = len;
+    const ls = toLines(c);
+    const sc = scoreOf(ls);
+    if (sc > bestScore) {
+      bestScore = sc;
       best = ls;
     }
   }
