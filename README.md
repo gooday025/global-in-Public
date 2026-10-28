@@ -27,7 +27,7 @@
 
 ## 평가
 
-`eval/dataset.jsonl`(기본 100건)과 `eval/dataset_hard.jsonl`(회피 표현·경계 사례 40건)은 보도된 문구 패턴과 정상 해외취업 공고 형식을 참고해 팀이 만든 **합성 데이터**입니다. 결과는 `eval/results.json`과 서비스의 '판단 방법' 페이지에 있습니다.
+`eval/dataset.jsonl`(기본 100건)과 `eval/dataset_hard.jsonl`(회피 표현·경계 사례 40건)은 보도된 문구 패턴과 정상 해외취업 공고 형식을 참고해 팀이 만든 **합성 데이터**입니다. 결과는 `eval/results.json`과 서비스의 '판단 방법' 페이지에 있습니다(2026-10-28, gemini-3.5-flash-lite, 배포 서버 측정: 규칙만 A F1 98%·B 재현율 5% → 규칙+AI 두 세트 모두 100%). 합성 데이터 기준이라 실제 공고에서는 더 낮을 수 있습니다.
 
 ```bash
 GEMINI_API_KEY=... npx tsx eval/run.ts

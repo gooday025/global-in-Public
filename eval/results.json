@@ -1,7 +1,7 @@
 {
-  "model": "claude-haiku-5-5",
+  "model": "gemini-3.5-flash-lite",
   "threshold": 0.5,
-  "date": "2026-10-28T00:57:53.915Z",
+  "date": "2026-10-28",
   "A_기본(100)": {
     "n": 100,
     "rules": {
@@ -9,13 +9,31 @@
       "fp": 0,
       "fn": 2,
       "tn": 50,
-      "precision": 1,
+      "precision": 1.0,
       "recall": 0.96,
       "f1": 0.98,
       "accuracy": 0.98
     },
-    "llm": null,
-    "hybrid": null
+    "llm": {
+      "tp": 50,
+      "fp": 0,
+      "fn": 0,
+      "tn": 50,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "accuracy": 1.0
+    },
+    "hybrid": {
+      "tp": 50,
+      "fp": 0,
+      "fn": 0,
+      "tn": 50,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "accuracy": 1.0
+    }
   },
   "B_회피·경계(40)": {
     "n": 40,
@@ -24,18 +42,39 @@
       "fp": 0,
       "fn": 19,
       "tn": 20,
-      "precision": 1,
+      "precision": 1.0,
       "recall": 0.05,
       "f1": 0.095,
       "accuracy": 0.525
     },
-    "llm": null,
-    "hybrid": null
+    "llm": {
+      "tp": 20,
+      "fp": 0,
+      "fn": 0,
+      "tn": 20,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "accuracy": 1.0
+    },
+    "hybrid": {
+      "tp": 20,
+      "fp": 0,
+      "fn": 0,
+      "tn": 20,
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "accuracy": 1.0
+    }
   },
-  "latency_ms": null,
+  "latency_ms": {
+    "median": 2141,
+    "p90": 2646
+  },
   "quote_check": {
-    "total": 0,
-    "dropped": 0
+    "total": 285,
+    "dropped": 4
   },
   "errors": []
 }
