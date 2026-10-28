@@ -330,7 +330,20 @@ table.data tr:last-child td { border-bottom: 0; }
 table.data th { font-weight: 700; color: var(--ink-3); font-size: 12.5px; background: #fbfcfd; }
 table.data td.num, table.data th.num { text-align: right; font-variant-numeric: tabular-nums; }
 table.data tr.hi td { background: var(--brand-soft); font-weight: 750; }
-table.data td.refs { display: grid; gap: 2px; font-size: 13px; min-width: 160px; }
+table.data td.refs { font-size: 13px; min-width: 150px; }
+table.data td.refs a, table.data td.refs span { display: block; margin-bottom: 2px; }
+table.data td.why { min-width: 220px; }
+@media (max-width: 720px) {
+  table.signals, table.signals tbody, table.signals tr, table.signals td { display: block; width: 100%; }
+  table.signals thead { display: none; }
+  table.signals tr { padding: 14px 14px 12px; border-bottom: 1px solid var(--line); }
+  table.signals tr:last-child { border-bottom: 0; }
+  table.signals td { border: 0; padding: 3px 0; min-width: 0; white-space: normal; }
+  table.signals td.nowrap { white-space: normal; font-size: 15.5px; }
+  table.signals td:nth-child(2) { margin: 2px 0 6px; }
+  table.signals td.refs::before { content: "근거 · "; color: var(--ink-3); font-weight: 700; }
+  table.signals td.refs a, table.signals td.refs span { display: inline; margin-right: 8px; }
+}
 .ref-list { list-style: disc; font-size: 13px; color: var(--ink-2); margin: 14px 0 0; padding-left: 18px; }
 .ref-list li { margin: 4px 0; }
 .eval-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 16px 0; }

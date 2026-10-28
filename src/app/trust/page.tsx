@@ -90,7 +90,7 @@ export default function Page() {
         <h2>2. 무엇을 근거로 위험하다고 하나요</h2>
         <p>위험 신호는 평가 데이터를 보기 전에 공개 자료만으로 정했습니다. 신호마다 출처를 붙였고, 공식 문서가 아니라 팀이 보도 사례를 정리한 것은 그렇다고 밝혔습니다.</p>
         <div className="scroll">
-          <table className="data">
+          <table className="data signals">
             <thead>
               <tr>
                 <th>위험 신호</th>
@@ -108,7 +108,7 @@ export default function Page() {
                   <td>
                     <span className={`sev ${s.severity}`}>{SEV[s.severity]}</span>
                   </td>
-                  <td>{s.why}</td>
+                  <td className="why">{s.why}</td>
                   <td className="refs">
                     {refsFor(s.id).map((x) =>
                       x.url ? (
