@@ -25,6 +25,7 @@ let geminiList: string[] | null = process.env.GEMINI_MODEL ? [process.env.GEMINI
 export let usedModel: string | null = null;
 export let lastListError: string | null = null;
 export let lastCallError: string | null = null;
+export const attemptLog: string[] = [];
 
 // 키로 쓸 수 있는 모델 중 텍스트·이미지 입력이 되는 최신 flash 계열을 고른다.
 export async function pickGeminiModel(): Promise<string> {
@@ -56,7 +57,7 @@ async function candidates(): Promise<string[]> {
   names.sort((a, b) => score(b) - score(a));
   if (!names.length) throw new Error("GEMINI_NO_MODEL");
   geminiModel = names[0];
-  geminiList = [...names.slice(0, 4), "gemini-flash-latest"].filter((n, i, a) => a.indexOf(n) === i);
+  geminiList = [...names.slice(0, 5), "gemini-flash-latest"].filter((n, i, a) => a.indexOf(n) === i);
   return geminiList;
 }
 
@@ -122,6 +123,7 @@ export async function jsonCall<T>(opts: {
         const t = await r.text();
         const m = t.match(/"retryDelay":\s*"(\d+)s"/);
         lastCallError = `GEMINI_${r.status}: ${t.slice(0, 300)}`;
+        attemptLog.push(`${model}:${r.status}@${Date.now() - t0}ms`);
         if (mi < models.length - 1) mi++;
         else await sleep(Math.min(3, m ? Number(m[1]) + 1 : 1) * 1000);
         continue;
