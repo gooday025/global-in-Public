@@ -1,0 +1,41 @@
+{
+  "model": "claude-haiku-5-5",
+  "threshold": 0.5,
+  "date": "2026-10-28T00:57:53.915Z",
+  "A_기본(100)": {
+    "n": 100,
+    "rules": {
+      "tp": 48,
+      "fp": 0,
+      "fn": 2,
+      "tn": 50,
+      "precision": 1,
+      "recall": 0.96,
+      "f1": 0.98,
+      "accuracy": 0.98
+    },
+    "llm": null,
+    "hybrid": null
+  },
+  "B_회피·경계(40)": {
+    "n": 40,
+    "rules": {
+      "tp": 1,
+      "fp": 0,
+      "fn": 19,
+      "tn": 20,
+      "precision": 1,
+      "recall": 0.05,
+      "f1": 0.095,
+      "accuracy": 0.525
+    },
+    "llm": null,
+    "hybrid": null
+  },
+  "latency_ms": null,
+  "quote_check": {
+    "total": 0,
+    "dropped": 0
+  },
+  "errors": []
+}
