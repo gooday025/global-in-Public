@@ -15,15 +15,16 @@ export async function GET(req: Request) {
   let probe: unknown = undefined;
   if (new URL(req.url).searchParams.get("probe")) {
     const t = Date.now();
+    const forced = new URL(req.url).searchParams.get("model") || undefined;
     try {
-      const out = await P.jsonCall<{ ok: boolean }>({ system: "JSON만 답하세요.", text: "ok를 true로", name: "p", maxTokens: 64, timeoutMs: 20_000, schema: { type: "object", properties: { ok: { type: "boolean" } }, required: ["ok"] } });
+      const out = await P.jsonCall<{ ok: boolean }>({ system: "JSON만 답하세요.", text: "ok를 true로", name: "p", maxTokens: 64, timeoutMs: 20_000, model: forced, schema: { type: "object", properties: { ok: { type: "boolean" } }, required: ["ok"] } });
       probe = { ok: true, used: P.usedModel, ms: Date.now() - t, out };
     } catch (e) {
       probe = { ok: false, attempts: P.attemptLog.slice(-8), ms: Date.now() - t, error: (e as Error).message, callError: P.lastCallError };
     }
   }
   return NextResponse.json(
-    { probe, provider: p, model, modelError, listError: P.lastListError, keyLength: (process.env.GEMINI_API_KEY ?? "").trim().length, travelApiKey: !!process.env.DATA_GO_KR_KEY, time: new Date().toISOString() },
+    { probe, models: provider() === "gemini" ? await P.candidates().catch(() => null) : null, provider: p, model, modelError, listError: P.lastListError, keyLength: (process.env.GEMINI_API_KEY ?? "").trim().length, travelApiKey: !!process.env.DATA_GO_KR_KEY, time: new Date().toISOString() },
     { headers: { "Cache-Control": "no-store" } },
   );
 }

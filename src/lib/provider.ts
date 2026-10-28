@@ -35,7 +35,7 @@ export async function pickGeminiModel(): Promise<string> {
 }
 
 // 사용 가능한 flash 모델을 최신순으로 정렬해 둔다. 최신 모델이 과부하(503)면 다음 모델로 넘어간다.
-async function candidates(): Promise<string[]> {
+export async function candidates(): Promise<string[]> {
   if (geminiList) return geminiList;
   const r = await fetch(`${GEMINI}/models?pageSize=200`, { headers: { "x-goog-api-key": gkey() }, signal: AbortSignal.timeout(8000) });
   if (!r.ok) {
@@ -93,11 +93,12 @@ export async function jsonCall<T>(opts: {
   name: string;
   maxTokens?: number;
   timeoutMs?: number;
+  model?: string;
 }): Promise<T> {
   const p = provider();
   if (!p) throw new Error("LLM_UNAVAILABLE");
   if (p === "gemini") {
-    const models = await candidates();
+    const models = opts.model ? [opts.model] : await candidates();
     let mi = 0;
     const parts: Record<string, unknown>[] = [];
     if (opts.image) parts.push({ inline_data: { mime_type: opts.image.mediaType, data: opts.image.data } });
