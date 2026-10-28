@@ -28,6 +28,12 @@ export function guessIso2(text: string): string | null {
   return null;
 }
 
+// 공공데이터포털은 '인코딩 키'(%가 들어 있음)와 '디코딩 키'를 함께 준다. 인코딩 키를 다시 인코딩하면 인증 오류가 난다.
+export function keyParam(key: string) {
+  const k = key.trim();
+  return /%[0-9A-Fa-f]{2}/.test(k) ? k : encodeURIComponent(k);
+}
+
 const cache = new Map<string, { at: number; v: TravelAlert }>();
 
 export async function getTravelAlert(iso2: string, countryName = ""): Promise<TravelAlert> {
@@ -39,8 +45,8 @@ export async function getTravelAlert(iso2: string, countryName = ""): Promise<Tr
   if (hit && Date.now() - hit.at < 6 * 3600_000) return hit.v;
   try {
     const url =
-      `https://apis.data.go.kr/1262000/TravelAlarmService2/getTravelAlarmList2?serviceKey=${encodeURIComponent(key)}` +
-      `&returnType=JSON&numOfRows=10&pageNo=1&cond[country_iso_alp2::EQ]=${iso2}`;
+      `https://apis.data.go.kr/1262000/TravelAlarmService2/getTravelAlarmList2?serviceKey=${keyParam(key)}` +
+      `&returnType=JSON&numOfRows=10&pageNo=1&${encodeURIComponent("cond[country_iso_alp2::EQ]")}=${iso2}`;
     const r = await fetch(url, { signal: AbortSignal.timeout(4000) });
     if (!r.ok) return base;
     const j = await r.json();

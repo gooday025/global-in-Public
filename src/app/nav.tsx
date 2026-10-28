@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 const LINKS = [
   { href: "/", label: "공고 확인" },
   { href: "/prepare", label: "출국 준비" },
-  { href: "/how", label: "판단 방법" },
+  { href: "/trust", label: "믿을 수 있나요?" },
 ];
 
 export function Nav() {

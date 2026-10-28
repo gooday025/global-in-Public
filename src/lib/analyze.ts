@@ -11,7 +11,9 @@ export interface Analysis {
   llmScore: number | null;
   mode: "hybrid" | "rules-only";
   signals: FiredSignal[];
-  mitigators: { label: string; evidence: Evidence[]; explanation?: string }[];
+  mitigators: { id: string; label: string; evidence: Evidence[]; explanation?: string }[];
+  salary: { text: string; monthlyManwon: number } | null;
+  source?: { kind: "text" | "image" | "url"; url?: string; title?: string };
   summary: string;
   questions: string[];
   job: LlmResult["job"] | null;
@@ -104,13 +106,13 @@ export async function analyze(input: { text?: string; image?: { data: string; me
   const sevOrder = { critical: 0, high: 1, medium: 2, low: 3 } as const;
   signals.sort((a, b) => sevOrder[a.severity] - sevOrder[b.severity] || b.weight - a.weight);
 
-  const mitigators = rules.mitigators.map((m) => ({ label: m.label, evidence: m.evidence }));
+  const mitigators: Analysis["mitigators"] = rules.mitigators.map((m) => ({ id: m.id, label: m.label, evidence: m.evidence }));
   if (llm) {
     for (const m of llm.mitigating) {
       const ev = locate(text, m.quote);
       if (!ev) continue;
       if (mitigators.some((x) => x.evidence.some((e) => e.start < ev.end && ev.start < e.end))) continue;
-      mitigators.push({ label: "정상 채용의 흔적", evidence: [ev], explanation: m.explanation } as never);
+      mitigators.push({ id: "llm", label: "정상 채용의 흔적", evidence: [ev], explanation: m.explanation });
     }
   }
 
@@ -123,6 +125,7 @@ export async function analyze(input: { text?: string; image?: { data: string; me
     mode: llm ? "hybrid" : "rules-only",
     signals,
     mitigators,
+    salary: rules.salary ? { text: rules.salary.text, monthlyManwon: rules.salary.monthlyManwon } : null,
     summary: llm?.summary ?? defaultSummary(levelOf(score), signals.length),
     questions: llm?.questions_to_ask?.slice(0, 3) ?? [
       "회사의 정식 법인명, 주소, 사업자(등록) 번호를 알려 주실 수 있나요?",
