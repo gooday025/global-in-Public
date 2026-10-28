@@ -10,20 +10,29 @@ export type JsonSchema = {
   enum?: string[];
 };
 
+// 환경변수에 공백·따옴표가 섞여 들어가도 동작하도록 정리한다.
+const gkey = () => (process.env.GEMINI_API_KEY ?? "").trim().replace(/^["']|["']$/g, "");
+
 export function provider(): "gemini" | "anthropic" | null {
-  if (process.env.GEMINI_API_KEY) return "gemini";
+  if (gkey()) return "gemini";
   if (process.env.ANTHROPIC_API_KEY) return "anthropic";
   return null;
 }
 
 const GEMINI = "https://generativelanguage.googleapis.com/v1beta";
 let geminiModel: string | null = process.env.GEMINI_MODEL || null;
+export let lastListError: string | null = null;
 
 // 키로 쓸 수 있는 모델 중 텍스트·이미지 입력이 되는 최신 flash 계열을 고른다.
 export async function pickGeminiModel(): Promise<string> {
   if (geminiModel) return geminiModel;
-  const r = await fetch(`${GEMINI}/models?pageSize=200`, { headers: { "x-goog-api-key": process.env.GEMINI_API_KEY! }, signal: AbortSignal.timeout(8000) });
-  if (!r.ok) throw new Error(`GEMINI_LIST_${r.status}`);
+  const r = await fetch(`${GEMINI}/models?pageSize=200`, { headers: { "x-goog-api-key": gkey() }, signal: AbortSignal.timeout(8000) });
+  if (!r.ok) {
+    // 목록 조회가 막혀도 키가 유효하면 별칭 모델로 동작한다. 상세 사유는 /api/health에 남긴다.
+    lastListError = `GEMINI_LIST_${r.status}: ${(await r.text()).slice(0, 160)}`;
+    geminiModel = "gemini-flash-latest";
+    return geminiModel;
+  }
   const j = (await r.json()) as { models?: { name: string; supportedGenerationMethods?: string[] }[] };
   const names = (j.models ?? [])
     .filter((m) => m.supportedGenerationMethods?.includes("generateContent"))
@@ -82,7 +91,7 @@ export async function jsonCall<T>(opts: {
     for (let attempt = 0; attempt < 3; attempt++) {
       const r = await fetch(`${GEMINI}/models/${model}:generateContent`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-goog-api-key": process.env.GEMINI_API_KEY! },
+        headers: { "Content-Type": "application/json", "x-goog-api-key": gkey() },
         body: JSON.stringify(body),
         signal: AbortSignal.timeout(opts.timeoutMs ?? 28_000),
       });
