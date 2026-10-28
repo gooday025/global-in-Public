@@ -65,6 +65,11 @@ function toGeminiSchema(s: JsonSchema): Record<string, unknown> {
   return o;
 }
 
+// 추론(생각) 단계를 최소로 줄여 응답 시간을 맞춘다. 3.x는 thinkingLevel, 2.5는 thinkingBudget을 쓴다.
+function thinkingFor(model: string): Record<string, unknown> {
+  return /gemini-2\./.test(model) ? { thinkingBudget: 0 } : { thinkingLevel: "low" };
+}
+
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export async function jsonCall<T>(opts: {
@@ -86,7 +91,7 @@ export async function jsonCall<T>(opts: {
     const body = {
       systemInstruction: { parts: [{ text: opts.system }] },
       contents: [{ role: "user", parts }],
-      generationConfig: { responseMimeType: "application/json", responseSchema: toGeminiSchema(opts.schema), temperature: 0, maxOutputTokens: opts.maxTokens ?? 4096 },
+      generationConfig: { responseMimeType: "application/json", responseSchema: toGeminiSchema(opts.schema), temperature: 0, maxOutputTokens: opts.maxTokens ?? 4096, thinkingConfig: thinkingFor(model) },
     };
     for (let attempt = 0; attempt < 3; attempt++) {
       const r = await fetch(`${GEMINI}/models/${model}:generateContent`, {

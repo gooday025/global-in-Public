@@ -95,7 +95,7 @@ export async function analyzeWithLlm(input: { text?: string; image?: { data: str
   const text = input.image
     ? "이미지 속 구인 공고를 먼저 transcribed_text에 그대로 옮겨 적고, 그 글을 기준으로 평가해 주세요." + (input.text ? `\n\n추가로 붙여넣은 글:\n${input.text}` : "")
     : `다음 공고를 평가해 주세요.\n\n<공고>\n${input.text}\n</공고>`;
-  const out = await jsonCall<LlmResult>({ system: SYSTEM, text, image: input.image, schema: SCHEMA, name: "report_assessment", maxTokens: 4096 });
+  const out = await jsonCall<LlmResult>({ system: SYSTEM, text, image: input.image, schema: SCHEMA, name: "report_assessment", maxTokens: 4096, timeoutMs: 22_000 });
   out.scam_probability = Math.max(0, Math.min(1, Number(out.scam_probability) || 0));
   out.signals ??= [];
   out.mitigating ??= [];
