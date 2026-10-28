@@ -1,0 +1,118 @@
+// LLM 공급자 추상화: GEMINI_API_KEY가 있으면 Gemini, 없고 ANTHROPIC_API_KEY가 있으면 Claude.
+import Anthropic from "@anthropic-ai/sdk";
+
+export type JsonSchema = {
+  type: "object" | "array" | "string" | "number" | "integer" | "boolean";
+  description?: string;
+  properties?: Record<string, JsonSchema>;
+  items?: JsonSchema;
+  required?: string[];
+  enum?: string[];
+};
+
+export function provider(): "gemini" | "anthropic" | null {
+  if (process.env.GEMINI_API_KEY) return "gemini";
+  if (process.env.ANTHROPIC_API_KEY) return "anthropic";
+  return null;
+}
+
+const GEMINI = "https://generativelanguage.googleapis.com/v1beta";
+let geminiModel: string | null = process.env.GEMINI_MODEL || null;
+
+// 키로 쓸 수 있는 모델 중 텍스트·이미지 입력이 되는 최신 flash 계열을 고른다.
+export async function pickGeminiModel(): Promise<string> {
+  if (geminiModel) return geminiModel;
+  const r = await fetch(`${GEMINI}/models?pageSize=200`, { headers: { "x-goog-api-key": process.env.GEMINI_API_KEY! }, signal: AbortSignal.timeout(8000) });
+  if (!r.ok) throw new Error(`GEMINI_LIST_${r.status}`);
+  const j = (await r.json()) as { models?: { name: string; supportedGenerationMethods?: string[] }[] };
+  const names = (j.models ?? [])
+    .filter((m) => m.supportedGenerationMethods?.includes("generateContent"))
+    .map((m) => m.name.replace(/^models\//, ""))
+    .filter((n) => /flash/.test(n) && !/(image|tts|audio|live|exp|preview|thinking|8b|embedding)/.test(n));
+  const score = (n: string) => {
+    const v = parseFloat((n.match(/gemini-(\d+(?:\.\d+)?)/) ?? [])[1] ?? "0");
+    return v * 10 - (/lite/.test(n) ? 3 : 0) - (/-\d{3}$/.test(n) ? 0.5 : 0);
+  };
+  names.sort((a, b) => score(b) - score(a));
+  if (!names.length) throw new Error("GEMINI_NO_MODEL");
+  geminiModel = names[0];
+  return geminiModel;
+}
+
+export async function modelName(): Promise<string> {
+  const p = provider();
+  if (p === "gemini") return pickGeminiModel();
+  if (p === "anthropic") return process.env.ANTHROPIC_MODEL || "claude-haiku-5-5";
+  return "none";
+}
+
+function toGeminiSchema(s: JsonSchema): Record<string, unknown> {
+  const o: Record<string, unknown> = { type: s.type.toUpperCase() };
+  if (s.description) o.description = s.description;
+  if (s.enum) o.enum = s.enum;
+  if (s.properties) o.properties = Object.fromEntries(Object.entries(s.properties).map(([k, v]) => [k, toGeminiSchema(v)]));
+  if (s.items) o.items = toGeminiSchema(s.items);
+  if (s.required) o.required = s.required;
+  return o;
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+export async function jsonCall<T>(opts: {
+  system: string;
+  text: string;
+  image?: { data: string; mediaType: string };
+  schema: JsonSchema;
+  name: string;
+  maxTokens?: number;
+  timeoutMs?: number;
+}): Promise<T> {
+  const p = provider();
+  if (!p) throw new Error("LLM_UNAVAILABLE");
+  if (p === "gemini") {
+    const model = await pickGeminiModel();
+    const parts: Record<string, unknown>[] = [];
+    if (opts.image) parts.push({ inline_data: { mime_type: opts.image.mediaType, data: opts.image.data } });
+    parts.push({ text: opts.text });
+    const body = {
+      systemInstruction: { parts: [{ text: opts.system }] },
+      contents: [{ role: "user", parts }],
+      generationConfig: { responseMimeType: "application/json", responseSchema: toGeminiSchema(opts.schema), temperature: 0, maxOutputTokens: opts.maxTokens ?? 4096 },
+    };
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const r = await fetch(`${GEMINI}/models/${model}:generateContent`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": process.env.GEMINI_API_KEY! },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(opts.timeoutMs ?? 28_000),
+      });
+      if (r.status === 429 || r.status >= 500) {
+        const t = await r.text();
+        const m = t.match(/"retryDelay":\s*"(\d+)s"/);
+        await sleep(Math.min(20, m ? Number(m[1]) + 1 : 4 * (attempt + 1)) * 1000);
+        continue;
+      }
+      if (!r.ok) throw new Error(`GEMINI_${r.status}: ${(await r.text()).slice(0, 200)}`);
+      const j = await r.json();
+      const txt: string = (j.candidates?.[0]?.content?.parts ?? []).map((x: { text?: string }) => x.text ?? "").join("");
+      if (!txt) throw new Error("GEMINI_EMPTY");
+      return JSON.parse(txt) as T;
+    }
+    throw new Error("GEMINI_RATE_LIMIT");
+  }
+  const c = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, timeout: opts.timeoutMs ?? 25_000, maxRetries: 1 });
+  const content: Anthropic.ContentBlockParam[] = [];
+  if (opts.image) content.push({ type: "image", source: { type: "base64", media_type: opts.image.mediaType as "image/png", data: opts.image.data } });
+  content.push({ type: "text", text: opts.text });
+  const res = await c.messages.create({
+    model: process.env.ANTHROPIC_MODEL || "claude-haiku-5-5",
+    max_tokens: opts.maxTokens ?? 1500,
+    system: opts.system,
+    tools: [{ name: opts.name, description: "결과를 보고합니다.", input_schema: opts.schema as Anthropic.Tool.InputSchema }],
+    tool_choice: { type: "tool", name: opts.name },
+    messages: [{ role: "user", content }],
+  });
+  const b = res.content.find((x) => x.type === "tool_use");
+  if (!b || b.type !== "tool_use") throw new Error("LLM_NO_TOOL_OUTPUT");
+  return b.input as T;
+}

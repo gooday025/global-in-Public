@@ -1,7 +1,5 @@
-import Anthropic from "@anthropic-ai/sdk";
 import { SIGNALS } from "./signals";
-
-export const MODEL = process.env.ANTHROPIC_MODEL || "claude-haiku-5-5";
+import { jsonCall, provider, type JsonSchema } from "./provider";
 
 export interface LlmSignal {
   id: string;
@@ -45,10 +43,7 @@ const SYSTEM = `당신은 해외 취업·유학을 준비하는 한국 청년을
 위험 신호 목록(id):
 ${SIGNAL_GUIDE}`;
 
-const TOOL: Anthropic.Tool = {
-  name: "report_assessment",
-  description: "공고의 위험 신호 평가 결과를 보고합니다.",
-  input_schema: {
+const SCHEMA: JsonSchema = {
     type: "object",
     properties: {
       transcribed_text: { type: "string", description: "이미지가 입력된 경우에만: 이미지 속 공고 글자를 그대로 옮겨 적은 전문" },
@@ -85,49 +80,22 @@ const TOOL: Anthropic.Tool = {
           required: ["quote", "explanation"],
         },
       },
-      scam_probability: { type: "number", minimum: 0, maximum: 1 },
+      scam_probability: { type: "number", description: "0~1" },
       summary: { type: "string" },
       questions_to_ask: { type: "array", items: { type: "string" } },
     },
     required: ["job", "signals", "mitigating", "scam_probability", "summary", "questions_to_ask"],
-  },
 };
 
-let client: Anthropic | null = null;
-function getClient() {
-  if (!process.env.ANTHROPIC_API_KEY) return null;
-  if (!client) client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, timeout: 25_000, maxRetries: 1 });
-  return client;
-}
-
 export function llmAvailable() {
-  return !!process.env.ANTHROPIC_API_KEY;
+  return provider() !== null;
 }
 
 export async function analyzeWithLlm(input: { text?: string; image?: { data: string; mediaType: string } }): Promise<LlmResult> {
-  const c = getClient();
-  if (!c) throw new Error("LLM_UNAVAILABLE");
-  const content: Anthropic.ContentBlockParam[] = [];
-  if (input.image) {
-    content.push({
-      type: "image",
-      source: { type: "base64", media_type: input.image.mediaType as "image/png", data: input.image.data },
-    });
-    content.push({ type: "text", text: "이미지 속 구인 공고를 먼저 transcribed_text에 그대로 옮겨 적고, 그 글을 기준으로 평가해 주세요." + (input.text ? `\n\n추가로 붙여넣은 글:\n${input.text}` : "") });
-  } else {
-    content.push({ type: "text", text: `다음 공고를 평가해 주세요.\n\n<공고>\n${input.text}\n</공고>` });
-  }
-  const res = await c.messages.create({
-    model: MODEL,
-    max_tokens: 1500,
-    system: SYSTEM,
-    tools: [TOOL],
-    tool_choice: { type: "tool", name: "report_assessment" },
-    messages: [{ role: "user", content }],
-  });
-  const block = res.content.find((b) => b.type === "tool_use");
-  if (!block || block.type !== "tool_use") throw new Error("LLM_NO_TOOL_OUTPUT");
-  const out = block.input as LlmResult;
+  const text = input.image
+    ? "이미지 속 구인 공고를 먼저 transcribed_text에 그대로 옮겨 적고, 그 글을 기준으로 평가해 주세요." + (input.text ? `\n\n추가로 붙여넣은 글:\n${input.text}` : "")
+    : `다음 공고를 평가해 주세요.\n\n<공고>\n${input.text}\n</공고>`;
+  const out = await jsonCall<LlmResult>({ system: SYSTEM, text, image: input.image, schema: SCHEMA, name: "report_assessment", maxTokens: 4096 });
   out.scam_probability = Math.max(0, Math.min(1, Number(out.scam_probability) || 0));
   out.signals ??= [];
   out.mitigating ??= [];

@@ -3,7 +3,8 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 import { join } from "path";
 import { runRules } from "../src/lib/rules";
-import { analyzeWithLlm, MODEL, type LlmResult } from "../src/lib/llm";
+import { analyzeWithLlm, type LlmResult } from "../src/lib/llm";
+import { modelName } from "../src/lib/provider";
 import { combine, locate } from "../src/lib/analyze";
 import { SIGNALS } from "../src/lib/signals";
 
@@ -19,12 +20,12 @@ const load = (f: string): Row[] => readFileSync(join(DIR, f), "utf8").trim().spl
 async function llmFor(r: Row): Promise<{ out: LlmResult; ms: number } | null> {
   const p = join(CACHE, `${r.id}.json`);
   if (existsSync(p)) return JSON.parse(readFileSync(p, "utf8"));
-  if (!process.env.ANTHROPIC_API_KEY) return null;
+  if (!process.env.ANTHROPIC_API_KEY && !process.env.GEMINI_API_KEY) return null;
   const t = Date.now();
   for (let i = 0; i < 3; i++) {
     try {
       const out = await analyzeWithLlm({ text: r.text });
-      const v = { out, ms: Date.now() - t, model: MODEL };
+      const v = { out, ms: Date.now() - t, model: await modelName() };
       writeFileSync(p, JSON.stringify(v, null, 1));
       return v;
     } catch (e) {
@@ -47,7 +48,7 @@ function metrics(pairs: { y: boolean; p: boolean }[]) {
 
 async function main() {
   const sets = { "A_기본(100)": load("dataset.jsonl"), "B_회피·경계(40)": load("dataset_hard.jsonl") };
-  const report: Record<string, unknown> = { model: MODEL, threshold: THRESH, date: new Date().toISOString() };
+  const report: Record<string, unknown> = { model: "see cache", threshold: THRESH, date: new Date().toISOString() };
   const errors: unknown[] = [];
   let quotesTotal = 0, quotesDropped = 0;
   const latencies: number[] = [];
