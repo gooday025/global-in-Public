@@ -113,12 +113,22 @@ export async function jsonCall<T>(opts: {
       const model = models[Math.min(mi, models.length - 1)];
       const left = budget - (Date.now() - t0);
       if (left < 3000) break;
-      const r = await fetch(`${GEMINI}/models/${model}:generateContent`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-goog-api-key": gkey() },
-        body: JSON.stringify(bodyFor(model)),
-        signal: AbortSignal.timeout(left),
-      });
+      // 응답이 없는 모델에 시간을 다 쓰지 않도록 시도당 상한을 두고, 초과하면 다음 모델로 넘어간다.
+      const cap = Math.min(left, opts.image ? 15_000 : 9_000);
+      let r: Response;
+      try {
+        r = await fetch(`${GEMINI}/models/${model}:generateContent`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-goog-api-key": gkey() },
+          body: JSON.stringify(bodyFor(model)),
+          signal: AbortSignal.timeout(cap),
+        });
+      } catch (e) {
+        attemptLog.push(`${model}:timeout@${Date.now() - t0}ms`);
+        lastCallError = `GEMINI_TIMEOUT: ${(e as Error).message}`;
+        if (mi < models.length - 1) mi++;
+        continue;
+      }
       if (r.status === 429 || r.status >= 500) {
         const t = await r.text();
         const m = t.match(/"retryDelay":\s*"(\d+)s"/);
