@@ -166,6 +166,12 @@ export function Checker() {
               </div>
             </div>
 
+            {res.mode === "rules-only" ? (
+              <p className="travel warn" role="note">
+                지금은 AI 연결 없이 규칙으로만 확인했습니다. 띄어쓰기·초성으로 바꿔 쓴 표현은 놓칠 수 있으니 잠시 후 다시 확인하세요.
+              </p>
+            ) : null}
+
             {res.signals.length ? (
               <>
                 <h3>찾은 위험 신호</h3>

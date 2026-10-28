@@ -1,36 +1,50 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 글로벌-인 (Global-In) · 출국 전 공고 안전 점검
 
-## Getting Started
+해외 취업·유학을 준비하는 청년이 구인 공고(글 또는 캡처)를 넣으면, AI가 해외취업 사기·감금 공고의 공통 위험 신호를 원문에 표시하고 지원 전에 확인할 것을 알려 주는 웹 서비스입니다. 출국일에 맞춘 준비 체크리스트도 만들어 줍니다.
 
-First, run the development server:
+2026 AI 라이프 솔루션 챌린지(산업통상부·KEIT) 출품 시제품이며, 'AI 라이프 아이디어 챌린지' 수상 후보작 **글로벌-인(Global-In)** 을 구현했습니다.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## 왜 만들었나
+
+- 주캄보디아 한국대사관에 접수된 취업사기·감금 피해는 2024년~2025년 8월 550건이며 100건은 미해결입니다 ([뉴시스, 2025.10](https://www.newsis.com/view/NISX20251023_0003373513)).
+- 유인 글은 "초보도 월 1000만원, 숙식·항공권 제공", "신변 안전 보장", "텔레그램 문의" 같은 문구를 반복하지만, 단속을 피하려고 표현을 바꿔 씁니다.
+- 정부는 공식 플랫폼 이용, 회사 정보 직접 확인, 고수익 보장 의심을 권고합니다 ([정책브리핑, 2025.10](https://www.korea.kr/news/policyNewsView.do?newsId=148954930)). 글로벌-인은 이 확인 과정을 공고 한 건 단위로 자동화합니다.
+
+## 동작 방식
+
+```
+공고 글/캡처 ─▶ Claude(구조화 추출 + 근거 인용) ─┐
+            └▶ 규칙 엔진(위험 신호 13종 + 급여 월 환산) ─┼▶ 근거 원문 대조(환각 차단) ─▶ 점수 = 규칙 40% + AI 60%
+외교부 여행경보 API ────────────────────────────┘        치명 신호 확인 시 '위험 높음' 이상
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- `src/lib/signals.ts` 위험 신호 정의(공개 가이드 기반, 평가셋 작성 전에 고정)
+- `src/lib/rules.ts`, `src/lib/salary.ts` 규칙 엔진, 급여 환산
+- `src/lib/llm.ts` Claude 도구 호출로 JSON 추출 (`claude-haiku-5-5`)
+- `src/lib/analyze.ts` 근거 대조, 하이브리드 점수
+- `src/lib/checklist.ts` 출국 준비 지식베이스(공식 기관 링크만)
+- `eval/` 평가셋과 평가 스크립트, LLM 응답 캐시
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 평가
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+`eval/dataset.jsonl`(기본 100건)과 `eval/dataset_hard.jsonl`(회피 표현·경계 사례 40건)은 보도된 문구 패턴과 정상 해외취업 공고 형식을 참고해 팀이 만든 **합성 데이터**입니다. 결과는 `eval/results.json`과 서비스의 '판단 방법' 페이지에 있습니다.
 
-## Learn More
+```bash
+ANTHROPIC_API_KEY=... npx tsx eval/run.ts
+```
 
-To learn more about Next.js, take a look at the following resources:
+## 실행
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+cp .env.example .env.local   # ANTHROPIC_API_KEY, DATA_GO_KR_KEY 입력
+npm install
+npm run dev
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+키가 없으면 규칙만으로 동작하고 화면에 그 사실을 표시합니다.
 
-## Deploy on Vercel
+## 한계
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- 평가셋이 합성 데이터라 실제 공고보다 단순할 수 있습니다. 실제 공고·피해 사례 검증이 다음 단계입니다.
+- 결과는 참고 정보이며 사기 여부를 확정하지 않습니다.
+- 입력한 공고와 이미지는 저장하지 않습니다.
