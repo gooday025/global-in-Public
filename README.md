@@ -13,14 +13,14 @@
 ## 동작 방식
 
 ```
-공고 글/캡처 ─▶ Claude(구조화 추출 + 근거 인용) ─┐
+공고 글/캡처 ─▶ 생성형 AI(구조화 추출 + 근거 인용) ─┐
             └▶ 규칙 엔진(위험 신호 13종 + 급여 월 환산) ─┼▶ 근거 원문 대조(환각 차단) ─▶ 점수 = 규칙 40% + AI 60%
 외교부 여행경보 API ────────────────────────────┘        치명 신호 확인 시 '위험 높음' 이상
 ```
 
 - `src/lib/signals.ts` 위험 신호 정의(공개 가이드 기반, 평가셋 작성 전에 고정)
 - `src/lib/rules.ts`, `src/lib/salary.ts` 규칙 엔진, 급여 환산
-- `src/lib/llm.ts` Claude 도구 호출로 JSON 추출 (`claude-haiku-5-5`)
+- `src/lib/provider.ts`, `src/lib/llm.ts` Gemini(기본) 또는 Claude로 JSON 스키마 추출
 - `src/lib/analyze.ts` 근거 대조, 하이브리드 점수
 - `src/lib/checklist.ts` 출국 준비 지식베이스(공식 기관 링크만)
 - `eval/` 평가셋과 평가 스크립트, LLM 응답 캐시
@@ -30,13 +30,14 @@
 `eval/dataset.jsonl`(기본 100건)과 `eval/dataset_hard.jsonl`(회피 표현·경계 사례 40건)은 보도된 문구 패턴과 정상 해외취업 공고 형식을 참고해 팀이 만든 **합성 데이터**입니다. 결과는 `eval/results.json`과 서비스의 '판단 방법' 페이지에 있습니다.
 
 ```bash
-ANTHROPIC_API_KEY=... npx tsx eval/run.ts
+GEMINI_API_KEY=... npx tsx eval/run.ts
+# 배포 서버에서: /api/eval?token=EVAL_TOKEN&set=A&offset=0&limit=20
 ```
 
 ## 실행
 
 ```bash
-cp .env.example .env.local   # ANTHROPIC_API_KEY, DATA_GO_KR_KEY 입력
+cp .env.example .env.local   # GEMINI_API_KEY, DATA_GO_KR_KEY, EVAL_TOKEN 입력
 npm install
 npm run dev
 ```

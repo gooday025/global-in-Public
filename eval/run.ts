@@ -19,7 +19,10 @@ const load = (f: string): Row[] => readFileSync(join(DIR, f), "utf8").trim().spl
 
 async function llmFor(r: Row): Promise<{ out: LlmResult; ms: number } | null> {
   const p = join(CACHE, `${r.id}.json`);
-  if (existsSync(p)) return JSON.parse(readFileSync(p, "utf8"));
+  if (existsSync(p)) {
+    const c = JSON.parse(readFileSync(p, "utf8"));
+    return c.out ? c : null;
+  }
   if (!process.env.ANTHROPIC_API_KEY && !process.env.GEMINI_API_KEY) return null;
   const t = Date.now();
   for (let i = 0; i < 3; i++) {
@@ -75,6 +78,8 @@ async function main() {
     }
     report[name] = { n: rows.length, rules: metrics(R), llm: L.length ? metrics(L) : null, hybrid: H.length ? metrics(H) : null };
   }
+  const anyCache = Object.values(sets).flat().map((r) => join(CACHE, `${r.id}.json`)).find((p) => existsSync(p));
+  if (anyCache) report.model = JSON.parse(readFileSync(anyCache, "utf8")).model ?? report.model;
   latencies.sort((a, b) => a - b);
   report.latency_ms = latencies.length ? { median: latencies[Math.floor(latencies.length / 2)], p90: latencies[Math.floor(latencies.length * 0.9)] } : null;
   report.quote_check = { total: quotesTotal, dropped: quotesDropped };
