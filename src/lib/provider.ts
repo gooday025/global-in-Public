@@ -22,6 +22,7 @@ export function provider(): "gemini" | "anthropic" | null {
 const GEMINI = "https://generativelanguage.googleapis.com/v1beta";
 let geminiModel: string | null = process.env.GEMINI_MODEL || null;
 export let lastListError: string | null = null;
+export let lastCallError: string | null = null;
 
 // 키로 쓸 수 있는 모델 중 텍스트·이미지 입력이 되는 최신 flash 계열을 고른다.
 export async function pickGeminiModel(): Promise<string> {
@@ -93,17 +94,22 @@ export async function jsonCall<T>(opts: {
       contents: [{ role: "user", parts }],
       generationConfig: { responseMimeType: "application/json", responseSchema: toGeminiSchema(opts.schema), temperature: 0, maxOutputTokens: opts.maxTokens ?? 4096, thinkingConfig: thinkingFor(model) },
     };
+    const t0 = Date.now();
+    const budget = opts.timeoutMs ?? 28_000;
     for (let attempt = 0; attempt < 3; attempt++) {
+      const left = budget - (Date.now() - t0);
+      if (left < 3000) break;
       const r = await fetch(`${GEMINI}/models/${model}:generateContent`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-goog-api-key": gkey() },
         body: JSON.stringify(body),
-        signal: AbortSignal.timeout(opts.timeoutMs ?? 28_000),
+        signal: AbortSignal.timeout(left),
       });
       if (r.status === 429 || r.status >= 500) {
         const t = await r.text();
         const m = t.match(/"retryDelay":\s*"(\d+)s"/);
-        await sleep(Math.min(20, m ? Number(m[1]) + 1 : 4 * (attempt + 1)) * 1000);
+        lastCallError = `GEMINI_${r.status}: ${t.slice(0, 300)}`;
+        await sleep(Math.min(5, m ? Number(m[1]) + 1 : 2 * (attempt + 1)) * 1000);
         continue;
       }
       if (!r.ok) throw new Error(`GEMINI_${r.status}: ${(await r.text()).slice(0, 200)}`);
