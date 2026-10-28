@@ -9,6 +9,7 @@ export interface Analysis {
   score: number; // 0~1 최종
   ruleScore: number;
   llmScore: number | null;
+  floor: "critical" | "ai" | null; // 점수 하한이 적용된 이유
   mode: "hybrid" | "rules-only";
   signals: FiredSignal[];
   mitigators: { id: string; label: string; evidence: Evidence[]; explanation?: string }[];
@@ -39,11 +40,24 @@ export function locate(text: string, quote: string): Evidence | null {
 export const W_RULE = 0.4;
 export const W_LLM = 0.6;
 
-export function combine(ruleRisk: number, ruleCritical: boolean, llm: LlmResult | null, llmCriticalVerified: boolean) {
-  if (!llm) return ruleRisk;
+// 규칙은 바꿔 쓴 표현을 못 잡으므로, AI가 원문에서 확인된 근거를 2개 이상 들며 확신하면 규칙 점수가 낮다고 결론을 깎지 않는다.
+export const AI_FLOOR = 0.85;
+export function combine(ruleRisk: number, ruleCritical: boolean, llm: LlmResult | null, llmCriticalVerified: boolean, llmVerified = 0) {
+  return combineWhy(ruleRisk, ruleCritical, llm, llmCriticalVerified, llmVerified).score;
+}
+export function combineWhy(ruleRisk: number, ruleCritical: boolean, llm: LlmResult | null, llmCriticalVerified: boolean, llmVerified = 0): { score: number; floor: "critical" | "ai" | null } {
+  if (!llm) return { score: ruleRisk, floor: null };
   let s = W_RULE * ruleRisk + W_LLM * llm.scam_probability;
-  if (ruleCritical || llmCriticalVerified) s = Math.max(s, 0.7);
-  return Math.max(0, Math.min(1, s));
+  let floor: "critical" | "ai" | null = null;
+  if (llmVerified >= 2 && AI_FLOOR * llm.scam_probability > s) {
+    s = AI_FLOOR * llm.scam_probability;
+    floor = "ai";
+  }
+  if ((ruleCritical || llmCriticalVerified) && s < 0.7) {
+    s = 0.7;
+    floor = "critical";
+  }
+  return { score: Math.max(0, Math.min(1, s)), floor };
 }
 
 const DEF = Object.fromEntries(SIGNALS.map((s) => [s.id, s]));
@@ -65,6 +79,7 @@ export async function analyze(input: { text?: string; image?: { data: string; me
   const signals: FiredSignal[] = rules.signals.map((s) => ({ ...s }));
   let dropped = 0;
   let llmCritical = false;
+  let llmVerified = 0;
 
   if (llm) {
     for (const ls of llm.signals) {
@@ -92,6 +107,7 @@ export async function analyze(input: { text?: string; image?: { data: string; me
           note: ls.explanation,
         });
       }
+      llmVerified++;
       if (d_isCritical(ls.id)) llmCritical = true;
     }
   }
@@ -102,7 +118,7 @@ export async function analyze(input: { text?: string; image?: { data: string; me
   let ruleRisk = rules.risk;
   if (travel?.level && travel.level >= 3) ruleRisk = Math.min(1, ruleRisk + 0.25);
 
-  const score = combine(ruleRisk, rules.hasCritical, llm, llmCritical);
+  const { score, floor } = combineWhy(ruleRisk, rules.hasCritical, llm, llmCritical, llmVerified);
   const sevOrder = { critical: 0, high: 1, medium: 2, low: 3 } as const;
   signals.sort((a, b) => sevOrder[a.severity] - sevOrder[b.severity] || b.weight - a.weight);
 
@@ -122,6 +138,7 @@ export async function analyze(input: { text?: string; image?: { data: string; me
     score,
     ruleScore: ruleRisk,
     llmScore: llm ? llm.scam_probability : null,
+    floor,
     mode: llm ? "hybrid" : "rules-only",
     signals,
     mitigators,

@@ -13,24 +13,46 @@ const ENT: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apo
 
 export function htmlToText(html: string): { title: string; text: string } {
   const title = (html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] ?? "").trim();
-  const og = html.match(/<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)/i)?.[1] ?? "";
-  let body = html
-    .replace(/<(script|style|noscript|svg|head|nav|footer|header|form)[\s\S]*?<\/\1>/gi, " ")
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/(p|div|li|h\d|tr|section|article)>/gi, "\n")
-    .replace(/<[^>]+>/g, " ");
+  const ogd = html.match(/<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)/i)?.[1] ?? "";
   const decode = (s: string) =>
     s.replace(/&(#x?[0-9a-f]+|\w+);/gi, (m, e: string) => {
       if (e[0] === "#") return String.fromCodePoint(parseInt(e.slice(1).replace(/^x/i, ""), e[1]?.toLowerCase() === "x" ? 16 : 10));
       return ENT[e.toLowerCase()] ?? m;
     });
-  body = decode(body)
-    .split("\n")
-    .map((l) => l.replace(/[ \t ]+/g, " ").trim())
-    .filter((l) => l.length > 1)
-    .join("\n");
-  const text = (body.length < 80 && og ? decode(og) + "\n" + body : body).slice(0, 4000);
-  return { title: decode(title).slice(0, 120), text };
+  const toLines = (h: string) =>
+    decode(
+      h
+        .replace(/<(script|style|noscript|svg|head|nav|footer|header|form|aside|button|select)[\s\S]*?<\/\1>/gi, " ")
+        .replace(/<br\s*\/?>/gi, "\n")
+        .replace(/<\/(p|div|li|h\d|tr|section|article|dd|dt)>/gi, "\n")
+        .replace(/<[^>]+>/g, " "),
+    )
+      .split("\n")
+      .map((l) => l.replace(/[ \t\u00a0]+/g, " ").trim())
+      .filter((l) => l.length > 1);
+  // 본문 후보: <article>, <main>, 본문을 뜻하는 id/class 블록 중 글이 가장 긴 것
+  const cands: string[] = [];
+  for (const m of html.matchAll(/<(article|main)\b[\s\S]*?<\/\1>/gi)) cands.push(m[0]);
+  for (const m of html.matchAll(/<div[^>]+(?:id|class)=["'][^"']*(?:article|content|post|view|detail|body|recruit|job)[^"']*["'][^>]*>/gi)) {
+    const start = m.index ?? 0;
+    cands.push(html.slice(start, start + 60000));
+  }
+  let best = toLines(html);
+  let bestLen = 0;
+  for (const c of cands) {
+    const ls = toLines(c).filter((l) => l.length >= 12);
+    const len = ls.join("").length;
+    if (len > bestLen) {
+      bestLen = len;
+      best = ls;
+    }
+  }
+  // 메뉴처럼 짧은 줄은 빼고, 너무 적게 남으면 원래 줄을 쓴다
+  let lines = best.filter((l) => l.length >= 12);
+  if (lines.join("").length < 80) lines = best;
+  let text = lines.join("\n");
+  if (text.length < 80 && ogd) text = decode(ogd) + "\n" + text;
+  return { title: decode(title).slice(0, 120), text: text.slice(0, 4000) };
 }
 
 async function checkHost(u: URL) {

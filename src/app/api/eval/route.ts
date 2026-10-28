@@ -30,13 +30,16 @@ export async function GET(req: Request) {
       const out = await analyzeWithLlm({ text: r.text });
       if (compact) {
         const rules = runRules(r.text);
-        let crit = false, total = 0, dropped = 0;
+        let crit = false, total = 0, dropped = 0, ver = 0;
         for (const sg of out.signals) {
           total++;
           if (!locate(r.text, sg.quote)) dropped++;
-          else if (CRIT.has(sg.id)) crit = true;
+          else {
+            ver++;
+            if (CRIT.has(sg.id)) crit = true;
+          }
         }
-        results.push({ id: r.id, rule: +rules.risk.toFixed(3), llm: out.scam_probability, hybrid: +combine(rules.risk, rules.hasCritical, out, crit).toFixed(3), q: [total, dropped], ms: Date.now() - t, model: usedModel ?? model });
+        results.push({ id: r.id, rule: +rules.risk.toFixed(3), llm: out.scam_probability, hybrid: +combine(rules.risk, rules.hasCritical, out, crit, ver).toFixed(3), q: [total, dropped], ms: Date.now() - t, model: usedModel ?? model });
       } else results.push({ id: r.id, out, ms: Date.now() - t, model });
     } catch (e) {
       results.push({ id: r.id, error: (e as Error).message, ms: Date.now() - t, model });

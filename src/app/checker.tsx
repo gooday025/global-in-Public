@@ -368,7 +368,7 @@ export function Checker() {
                     <dd>{Math.round((res.llmScore ?? 0) * 100)}</dd>
                   </div>
                   <div className="total">
-                    <dt>최종 (규칙 40% + AI 60%)</dt>
+                    <dt>{res.floor === "ai" ? "최종 (AI 근거 확인 → AI 점수 기준)" : res.floor === "critical" ? "최종 (치명 신호 → 70 이상)" : "최종 (규칙 40% + AI 60%)"}</dt>
                     <dd>{Math.round(res.score * 100)}</dd>
                   </div>
                 </dl>
@@ -377,6 +377,11 @@ export function Checker() {
                   <Icon name="warn" size={15} /> 지금은 AI 연결 없이 규칙으로만 확인했어요. 말을 바꿔 쓴 표현은 놓칠 수 있으니 잠시 후 다시 확인하세요.
                 </p>
               )}
+              {res.floor === "ai" ? (
+                <p className="ok-note">
+                  <Icon name="check" size={15} /> 정해진 위험 문구는 없지만, AI가 원문에서 확인된 근거를 여러 개 들었어요. 말을 바꿔 쓴 공고일 수 있어 AI 판단을 우선했어요.
+                </p>
+              ) : null}
               {res.mode === "hybrid" ? (
                 <p className="ok-note">
                   <Icon name="check" size={15} /> 화면의 인용은 모두 원문에서 다시 찾은 문구예요.

@@ -65,14 +65,18 @@ async function main() {
       if (!l) continue;
       latencies.push(l.ms);
       let crit = false;
+      let ver = 0;
       for (const s of l.out.signals) {
         quotesTotal++;
         const ev = locate(r.text, s.quote);
         if (!ev) quotesDropped++;
-        else if (CRIT.has(s.id)) crit = true;
+        else {
+          ver++;
+          if (CRIT.has(s.id)) crit = true;
+        }
       }
       L.push({ y, p: l.out.scam_probability >= THRESH });
-      const h = combine(rules.risk, rules.hasCritical, l.out, crit);
+      const h = combine(rules.risk, rules.hasCritical, l.out, crit, ver);
       H.push({ y, p: h >= THRESH });
       if ((h >= THRESH) !== y) errors.push({ set: name, id: r.id, label: r.label, rule: +rules.risk.toFixed(2), llm: l.out.scam_probability, hybrid: +h.toFixed(2) });
     }
