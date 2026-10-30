@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Analysis } from "@/lib/analyze";
 import { refsFor, REFS, MITIGATOR_REF } from "@/lib/refs";
+import { CompanyCheck } from "./company-check";
 
 export const EXAMPLES = [
   {
@@ -132,6 +133,7 @@ export function Checker() {
   const [err, setErr] = useState("");
   const [res, setRes] = useState<Analysis | null>(null);
   const [shared, setShared] = useState("");
+  const [inResult, setInResult] = useState(false);
   const resultRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLDivElement>(null);
 
@@ -185,6 +187,27 @@ export function Checker() {
     } catch {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // 결과를 보고 있는 동안에만 모바일 하단 버튼을 띄운다
+  useEffect(() => {
+    const el = resultRef.current;
+    if (!el || !res) {
+      setInResult(false);
+      return;
+    }
+    const io = new IntersectionObserver(([e]) => setInResult(e.isIntersecting), { rootMargin: "-40% 0px -20% 0px" });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [res]);
+
+  function reset() {
+    setRes(null);
+    setText("");
+    setUrl("");
+    setFile(null);
+    setShared("");
+    inputRef.current?.scrollIntoView({ behavior: "smooth" });
+  }
 
   async function share() {
     if (!res) return;
@@ -303,8 +326,16 @@ export function Checker() {
 
       {res && lv ? (
         <section className="result" ref={resultRef} aria-live="polite" aria-label="확인 결과">
+          <nav className="result-nav" aria-label="결과 바로가기">
+            <a href="#verdict" className={lv.tone}>
+              <span className={`dot ${lv.tone}`} /> {lv.word}
+            </a>
+            <a href="#signals">위험 신호 {res.signals.length}</a>
+            <a href="#company">회사 확인</a>
+            <a href="#todo">할 일</a>
+          </nav>
           {/* 1. 결론 */}
-          <div className={`verdict ${lv.tone}`}>
+          <div className={`verdict ${lv.tone}`} id="verdict">
             <div className="verdict-main">
               <p className="verdict-level">
                 <span className={`dot ${lv.tone}`} />
@@ -391,20 +422,10 @@ export function Checker() {
               <p className="summary">{res.summary}</p>
               <div className="verdict-actions">
                 <button className="btn ghost" type="button" onClick={share}>
-                  <Icon name="share" size={16} /> 결과 공유
+                  <Icon name="share" size={16} /> 결과 공유하기
                 </button>
-                <button
-                  className="btn ghost"
-                  type="button"
-                  onClick={() => {
-                    setRes(null);
-                    setText("");
-                    setUrl("");
-                    setFile(null);
-                    inputRef.current?.scrollIntoView({ behavior: "smooth" });
-                  }}
-                >
-                  다른 공고 확인
+                <button className="btn ghost" type="button" onClick={reset}>
+                  다른 공고 확인하기
                 </button>
               </div>
               {shared ? <p className="shared">{shared}</p> : null}
@@ -428,7 +449,7 @@ export function Checker() {
               <Annotated a={res} />
             </div>
 
-            <div className="sigs">
+            <div className="sigs" id="signals">
               <h3>
                 찾은 위험 신호 <span>{res.signals.length}개</span>
               </h3>
@@ -436,12 +457,16 @@ export function Checker() {
                 <ol className="signals">
                   {res.signals.map((s, i) => (
                     <li key={s.id + i} className={`sig ${s.severity}`}>
-                      <div className="sig-top">
-                        <span className="sig-no">{i + 1}</span>
-                        <span className="sig-label">{s.label}</span>
-                        <span className={`sev ${s.severity}`}>{SEV[s.severity]}</span>
-                      </div>
-                      <q>{s.evidence[0]?.text}</q>
+                      <details open={i === 0}>
+                      <summary>
+                        <div className="sig-top">
+                          <span className="sig-no">{i + 1}</span>
+                          <span className="sig-label">{s.label}</span>
+                          <span className={`sev ${s.severity}`}>{SEV[s.severity]}</span>
+                          <span className="chev" aria-hidden="true" />
+                        </div>
+                        <q>{s.evidence[0]?.text}</q>
+                      </summary>
                       <p>{s.note && s.source !== "rule" ? s.note : s.why}</p>
                       <p className="check">
                         <b>확인 방법</b> {s.check}
@@ -464,6 +489,7 @@ export function Checker() {
                           ))}
                         </span>
                       </p>
+                      </details>
                     </li>
                   ))}
                 </ol>
@@ -473,7 +499,10 @@ export function Checker() {
             </div>
           </div>
 
-          {/* 3. 공고 정보 / 안심 요소 */}
+          {/* 3. 회사 확인 */}
+          <CompanyCheck text={res.text} aiCompany={res.job?.company} iso2={res.travel?.iso2} country={res.travel?.countryName || res.job?.country} />
+
+          {/* 4. 공고 정보 / 안심 요소 */}
           <div className="facts">
             <div className="card">
               <h3>공고에서 읽은 정보</h3>
@@ -527,7 +556,7 @@ export function Checker() {
           </div>
 
           {/* 4. 할 일 */}
-          <div className="todo card">
+          <div className="todo card" id="todo">
             <h3>지원 전에 할 일</h3>
             <ol className="todo-list">
               <li>
@@ -541,7 +570,7 @@ export function Checker() {
               <li>
                 <strong>회사가 진짜인지 확인하기</strong>
                 <span>
-                  KOTRA 해외취업 헬프데스크의 기업정보 확인 서비스, 계약서는 자문변호사 검토 · <a href="https://www.worldjob.or.kr" target="_blank" rel="noreferrer">월드잡플러스</a>
+                  <a href="#company">위의 ‘회사가 진짜인지 확인하기’</a>에서 법인 등록부·피해 검색·지도를 열어 보세요. 계약서는 출국 전에 받아 두세요.
                 </span>
               </li>
               <li>
@@ -579,6 +608,17 @@ export function Checker() {
             <a href="/trust">판단 근거와 정확도 보기 →</a>
           </p>
         </section>
+      ) : null}
+
+      {res && lv ? (
+        <div className={`bottom-bar ${inResult ? "show" : ""}`} aria-hidden={!inResult}>
+          <button className="btn ghost" type="button" onClick={reset} tabIndex={inResult ? 0 : -1}>
+            다른 공고 확인
+          </button>
+          <button className="btn primary" type="button" onClick={share} tabIndex={inResult ? 0 : -1}>
+            <Icon name="share" size={16} /> 결과 공유하기
+          </button>
+        </div>
       ) : null}
     </>
   );
