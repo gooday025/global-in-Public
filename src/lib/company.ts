@@ -92,7 +92,8 @@ export interface CheckLink {
 }
 
 export function companyLinks(name: string, iso2: string | null | undefined, sites: string[]): CheckLink[] {
-  const q = name.trim();
+  // 검색에는 법인 표기((주)·주식회사)를 뗀 이름이 더 잘 걸린다
+  const q = name.replace(/\(주\)|㈜|주식회사/g, " ").replace(/\s+/g, " ").trim();
   const iso = (iso2 ?? "").toUpperCase();
   const reg = REGISTRY[iso];
   const g = (s: string) => `https://www.google.com/search?q=${encodeURIComponent(s)}`;
