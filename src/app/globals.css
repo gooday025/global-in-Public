@@ -478,3 +478,5 @@ table.data td.num, table.data th.num { white-space: nowrap; }
   .nav a { padding: 6px 7px; font-size: 12.5px; }
 }
 @media (max-width: 340px) { .nav a { padding: 6px 5px; font-size: 12px; } .top .wrap { padding: 0 10px; } }
+.tab { white-space: nowrap; min-width: 0; }
+@media (max-width: 400px) { .tab { font-size: 13.5px; gap: 4px; padding: 10px 4px; } .tab svg { width: 14px; height: 14px; } }

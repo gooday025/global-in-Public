@@ -245,7 +245,7 @@ export function Checker() {
             [
               ["text", "doc", "글 붙여넣기"],
               ["url", "link", "링크"],
-              ["image", "image", "캡처 이미지"],
+              ["image", "image", "캡처"],
             ] as const
           ).map(([m, ic, label]) => (
             <button key={m} role="tab" aria-selected={mode === m} className="tab" type="button" onClick={() => setMode(m)}>
