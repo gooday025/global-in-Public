@@ -468,3 +468,13 @@ table.data td.num, table.data th.num { white-space: nowrap; }
 }
 .result > * { min-width: 0; }
 .result-nav { max-width: 100%; }
+
+/* 좁은 폰(375px 이하)에서 상단 메뉴가 두 줄로 꺾이지 않게 */
+.nav a, .brand { white-space: nowrap; }
+@media (max-width: 400px) {
+  .top .wrap { padding: 0 12px; gap: 6px; }
+  .brand { font-size: 16px; gap: 6px; }
+  .brand svg { width: 22px; height: 22px; }
+  .nav a { padding: 6px 7px; font-size: 12.5px; }
+}
+@media (max-width: 340px) { .nav a { padding: 6px 5px; font-size: 12px; } .top .wrap { padding: 0 10px; } }
